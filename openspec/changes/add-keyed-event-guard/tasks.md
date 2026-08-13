@@ -13,10 +13,10 @@
 ## 3. Behavioral Test Coverage
 
 - [x] 3.1 Replace the scaffold test with coverage for first execution, synchronous and asynchronous values, nullable values, different-key concurrency, and instance isolation.
-- [ ] 3.2 Add completer-driven tests for same-key in-flight drops and reentrant same-key submissions.
-- [ ] 3.3 Add deterministic timer tests for cooldown drops, cooldown beginning after completion, expiration, zero duration, and cleanup safety.
-- [ ] 3.4 Add tests proving synchronous throws and asynchronous failures propagate and permit an immediate same-key retry.
-- [ ] 3.5 Add construction and key-semantics tests for negative cooldowns, equal keys, and distinct keys.
+- [x] 3.2 Add completer-driven tests for same-key in-flight drops and reentrant same-key submissions.
+- [x] 3.3 Add deterministic timer tests for cooldown drops, cooldown beginning after completion, expiration, zero duration, and cleanup safety.
+- [x] 3.4 Add tests proving synchronous throws and asynchronous failures propagate and permit an immediate same-key retry.
+- [x] 3.5 Add construction and key-semantics tests for negative cooldowns, equal keys, and distinct keys.
 
 ## 4. Package Documentation
 

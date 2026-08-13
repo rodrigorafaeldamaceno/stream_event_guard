@@ -1,10 +1,11 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:stream_event_guard/stream_event_guard.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('EventGuard', () {
+  group('execution', () {
     test(
       'executes the first synchronous action and preserves its value',
       () async {
@@ -60,4 +61,228 @@ void main() {
       expect(second, isA<Executed<int>>());
     });
   });
+
+  group('in-flight suppression', () {
+    test('drops the same key while its first action is pending', () async {
+      final guard = EventGuard<String>();
+      final completer = Completer<int>();
+      var duplicateInvoked = false;
+      final first = guard.run(key: 'A', action: () => completer.future);
+
+      final duplicate = await guard.run(
+        key: 'A',
+        action: () {
+          duplicateInvoked = true;
+          return 2;
+        },
+      );
+
+      expect(duplicateInvoked, isFalse);
+      expect(duplicate, isA<Dropped<int>>());
+      expect((duplicate as Dropped<int>).reason, DropReason.alreadyRunning);
+
+      completer.complete(1);
+      expect((await first as Executed<int>).value, 1);
+    });
+
+    test('drops a reentrant submission for the running key', () async {
+      final guard = EventGuard<String>();
+      GuardResult<int>? nested;
+
+      final outer = await guard.run(
+        key: 'A',
+        action: () async {
+          nested = await guard.run(key: 'A', action: () => 2);
+          return 1;
+        },
+      );
+
+      expect((outer as Executed<int>).value, 1);
+      expect(nested, isA<Dropped<int>>());
+      expect((nested! as Dropped<int>).reason, DropReason.alreadyRunning);
+    });
+  });
+
+  group('cooldown', () {
+    test('drops during cooldown and runs again after expiration', () {
+      fakeAsync((async) {
+        final guard = EventGuard<String>(cooldown: const Duration(seconds: 2));
+        var invocations = 0;
+
+        final first = _complete(
+          guard.run(key: 'A', action: () => ++invocations),
+          async,
+        );
+        final duringCooldown = _complete(
+          guard.run(key: 'A', action: () => ++invocations),
+          async,
+        );
+
+        expect((first as Executed<int>).value, 1);
+        expect((duringCooldown as Dropped<int>).reason, DropReason.cooldown);
+        expect(invocations, 1);
+
+        async.elapse(const Duration(seconds: 2));
+        final afterCooldown = _complete(
+          guard.run(key: 'A', action: () => ++invocations),
+          async,
+        );
+
+        expect((afterCooldown as Executed<int>).value, 2);
+      });
+    });
+
+    test('starts the full cooldown after the action completes', () {
+      fakeAsync((async) {
+        final guard = EventGuard<String>(cooldown: const Duration(seconds: 2));
+        final completer = Completer<int>();
+        final first = guard.run(key: 'A', action: () => completer.future);
+
+        async.elapse(const Duration(seconds: 10));
+        completer.complete(1);
+        expect(_complete(first, async), isA<Executed<int>>());
+
+        async.elapse(const Duration(seconds: 1));
+        final tooEarly = _complete(guard.run(key: 'A', action: () => 2), async);
+        expect((tooEarly as Dropped<int>).reason, DropReason.cooldown);
+
+        async.elapse(const Duration(seconds: 1));
+        final allowed = _complete(guard.run(key: 'A', action: () => 3), async);
+        expect((allowed as Executed<int>).value, 3);
+      });
+    });
+
+    test('zero cooldown allows an immediate next run', () async {
+      final guard = EventGuard<String>();
+
+      await guard.run(key: 'A', action: () => 1);
+      final second = await guard.run(key: 'A', action: () => 2);
+
+      expect((second as Executed<int>).value, 2);
+    });
+
+    test('expired cleanup cannot unprotect a newer running action', () {
+      fakeAsync((async) {
+        final guard = EventGuard<String>(cooldown: const Duration(seconds: 1));
+        expect(
+          _complete(guard.run(key: 'A', action: () => 1), async),
+          isA<Executed<int>>(),
+        );
+        expect(async.nonPeriodicTimerCount, 1);
+
+        async.elapse(const Duration(seconds: 1));
+        expect(async.nonPeriodicTimerCount, 0);
+
+        final completer = Completer<int>();
+        final newer = guard.run(key: 'A', action: () => completer.future);
+        async.flushMicrotasks();
+        async.elapse(const Duration(hours: 1));
+
+        final duplicate = _complete(
+          guard.run(key: 'A', action: () => 3),
+          async,
+        );
+        expect((duplicate as Dropped<int>).reason, DropReason.alreadyRunning);
+
+        completer.complete(2);
+        expect((_complete(newer, async) as Executed<int>).value, 2);
+      });
+    });
+  });
+
+  group('failures', () {
+    test('propagates a synchronous throw and allows immediate retry', () async {
+      final guard = EventGuard<String>(cooldown: const Duration(minutes: 1));
+      final error = StateError('sync failure');
+
+      await expectLater(
+        guard.run<void>(key: 'A', action: () => throw error),
+        throwsA(same(error)),
+      );
+      final retry = await guard.run(key: 'A', action: () => 2);
+
+      expect((retry as Executed<int>).value, 2);
+    });
+
+    test(
+      'propagates an asynchronous error and allows immediate retry',
+      () async {
+        final guard = EventGuard<String>(cooldown: const Duration(minutes: 1));
+        final error = StateError('async failure');
+
+        await expectLater(
+          guard.run<void>(key: 'A', action: () => Future<void>.error(error)),
+          throwsA(same(error)),
+        );
+        final retry = await guard.run(key: 'A', action: () => 2);
+
+        expect((retry as Executed<int>).value, 2);
+      },
+    );
+  });
+
+  group('configuration and key semantics', () {
+    test('rejects a negative cooldown', () {
+      expect(
+        () => EventGuard<String>(cooldown: const Duration(microseconds: -1)),
+        throwsArgumentError,
+      );
+    });
+
+    test('treats equal keys as the same key', () async {
+      final guard = EventGuard<_EquivalentKey>();
+      final completer = Completer<void>();
+      final first = guard.run(
+        key: const _EquivalentKey('A'),
+        action: () => completer.future,
+      );
+
+      final duplicate = await guard.run(
+        key: const _EquivalentKey('A'),
+        action: () => 2,
+      );
+
+      expect((duplicate as Dropped<int>).reason, DropReason.alreadyRunning);
+      completer.complete();
+      await first;
+    });
+
+    test('treats unequal keys independently', () async {
+      final guard = EventGuard<_EquivalentKey>();
+      final completer = Completer<void>();
+      final first = guard.run(
+        key: const _EquivalentKey('A'),
+        action: () => completer.future,
+      );
+
+      final other = await guard.run(
+        key: const _EquivalentKey('B'),
+        action: () => 2,
+      );
+
+      expect((other as Executed<int>).value, 2);
+      completer.complete();
+      await first;
+    });
+  });
+}
+
+GuardResult<T>? _complete<T>(Future<GuardResult<T>> future, FakeAsync async) {
+  GuardResult<T>? result;
+  future.then((value) => result = value);
+  async.flushMicrotasks();
+  return result;
+}
+
+final class _EquivalentKey {
+  const _EquivalentKey(this.value);
+
+  final String value;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _EquivalentKey && other.value == value;
+
+  @override
+  int get hashCode => value.hashCode;
 }
