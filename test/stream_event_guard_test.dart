@@ -6,6 +6,34 @@ import 'package:test/test.dart';
 
 void main() {
   group('stream integration', () {
+    test('supports fire-and-forget run inside a stream listener', () async {
+      final controller = StreamController<String>(sync: true);
+      final guard = EventGuard<String>();
+      final release = Completer<void>();
+      final processed = <String>[];
+
+      controller.stream.listen((code) {
+        guard.run<void>(
+          key: code,
+          action: () async {
+            processed.add(code);
+            await release.future;
+          },
+        );
+      });
+
+      controller
+        ..add('ABC123')
+        ..add('ABC123')
+        ..add('XYZ999');
+
+      expect(processed, ['ABC123', 'XYZ999']);
+
+      release.complete();
+      await controller.close();
+      await Future<void>.delayed(Duration.zero);
+    });
+
     test(
       'deduplicates a QR burst by key without blocking another code',
       () async {
