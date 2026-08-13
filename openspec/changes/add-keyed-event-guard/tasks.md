@@ -26,6 +26,6 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Run Dart formatting, static analysis, and the complete test suite, fixing all failures within the change scope.
-- [ ] 5.2 Run the package publication dry run and address package-quality warnings that are actionable for v0.1.0.
-- [ ] 5.3 Validate the completed OpenSpec change in strict mode.
+- [x] 5.1 Run Dart formatting, static analysis, and the complete test suite, fixing all failures within the change scope.
+- [x] 5.2 Run the package publication dry run and address package-quality warnings that are actionable for v0.1.0.
+- [x] 5.3 Validate the completed OpenSpec change in strict mode.

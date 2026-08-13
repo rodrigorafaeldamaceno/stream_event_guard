@@ -1,0 +1,10 @@
+/.codex/
+/.dart_tool/
+/.git/
+/.idea/
+/.serena/
+/build/
+/coverage/
+/openspec/
+/pubspec.lock
+*.iml
