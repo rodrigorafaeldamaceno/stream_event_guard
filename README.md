@@ -24,33 +24,55 @@ dart pub add stream_event_guard
 
 For a Flutter application, use `flutter pub add stream_event_guard`.
 
-## Usage
+## Stream usage
 
-Create a guard with the type used to identify equivalent events:
+Create a guard with the type used to identify equivalent events. The following
+listener allows different QR codes to run concurrently while deduplicating
+bursts of the same code:
 
 ```dart
+import 'dart:async';
+
 import 'package:stream_event_guard/stream_event_guard.dart';
 
 final scanGuard = EventGuard<String>(
   cooldown: const Duration(seconds: 2),
 );
 
-Future<void> handleScan(String code) async {
-  final result = await scanGuard.run(
-    key: code,
-    action: () => processCode(code),
-  );
+void listenToScanner(Stream<String> scannerStream) {
+  scannerStream.listen((code) {
+    unawaited(handleScan(code));
+  });
+}
 
-  switch (result) {
-    case Executed(value: final value):
-      print('Processed: $value');
-    case Dropped(reason: final reason):
-      print('Ignored: $reason');
+Future<void> handleScan(String code) async {
+  try {
+    final result = await scanGuard.run(
+      key: code,
+      action: () => processCode(code),
+    );
+
+    switch (result) {
+      case Executed(value: final value):
+        print('Processed: $value');
+      case Dropped(reason: final reason):
+        print('Ignored: $code ($reason)');
+    }
+  } catch (error, stackTrace) {
+    reportError(error, stackTrace);
   }
 }
 
 Future<String> processCode(String code) async => 'product:$code';
+
+void reportError(Object error, StackTrace stackTrace) {
+  // Forward the failure to your logger or error reporting service.
+}
 ```
+
+`EventGuard` does not transform or subscribe to the stream itself. It is used
+at the event-processing boundary, so the same API also works with QR/barcode
+scanners, NFC, BLE, sensors, button events, WebSockets, and direct method calls.
 
 For a given key, the lifecycle is:
 

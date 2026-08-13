@@ -5,6 +5,125 @@ import 'package:stream_event_guard/stream_event_guard.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('stream integration', () {
+    test(
+      'deduplicates a QR burst by key without blocking another code',
+      () async {
+        final controller = StreamController<String>(sync: true);
+        final guard = EventGuard<String>(cooldown: const Duration(seconds: 2));
+        final firstCodeCompleter = Completer<void>();
+        final invocations = <String, int>{};
+        final outcomes = <({String code, GuardResult<String> result})>[];
+        final pending = <Future<void>>[];
+
+        controller.stream.listen((code) {
+          final execution = guard.run(
+            key: code,
+            action: () async {
+              invocations.update(code, (count) => count + 1, ifAbsent: () => 1);
+              if (code == 'ABC123') {
+                await firstCodeCompleter.future;
+              }
+              return code;
+            },
+          );
+          pending.add(
+            execution.then(
+              (result) => outcomes.add((code: code, result: result)),
+            ),
+          );
+        });
+
+        controller
+          ..add('ABC123')
+          ..add('ABC123')
+          ..add('ABC123')
+          ..add('XYZ999')
+          ..add('ABC123');
+
+        firstCodeCompleter.complete();
+        await controller.close();
+        await Future.wait(pending);
+
+        expect(invocations, {'ABC123': 1, 'XYZ999': 1});
+        expect(
+          outcomes.where(
+            (outcome) =>
+                outcome.code == 'ABC123' && outcome.result is Executed<String>,
+          ),
+          hasLength(1),
+        );
+        expect(
+          outcomes.where(
+            (outcome) =>
+                outcome.code == 'ABC123' &&
+                outcome.result is Dropped<String> &&
+                (outcome.result as Dropped<String>).reason ==
+                    DropReason.alreadyRunning,
+          ),
+          hasLength(3),
+        );
+        expect(
+          outcomes.where(
+            (outcome) =>
+                outcome.code == 'XYZ999' && outcome.result is Executed<String>,
+          ),
+          hasLength(1),
+        );
+      },
+    );
+
+    test('drops stream events during cooldown and accepts them afterward', () {
+      fakeAsync((async) {
+        final controller = StreamController<String>(sync: true);
+        final guard = EventGuard<String>(cooldown: const Duration(seconds: 2));
+        final outcomes = <GuardResult<String>>[];
+        var invocations = 0;
+
+        final subscription = controller.stream.listen((code) {
+          guard
+              .run(
+                key: code,
+                action: () {
+                  invocations++;
+                  return code;
+                },
+              )
+              .then(outcomes.add);
+        });
+
+        controller.add('ABC123');
+        async.flushMicrotasks();
+        controller
+          ..add('ABC123')
+          ..add('ABC123');
+        async.flushMicrotasks();
+
+        expect(invocations, 1);
+        expect(outcomes.first, isA<Executed<String>>());
+        expect(
+          outcomes.where(
+            (result) =>
+                result is Dropped<String> &&
+                result.reason == DropReason.cooldown,
+          ),
+          hasLength(2),
+        );
+
+        async.elapse(const Duration(seconds: 2));
+        controller.add('ABC123');
+        async.flushMicrotasks();
+
+        expect(invocations, 2);
+        expect(outcomes.last, isA<Executed<String>>());
+
+        unawaited(subscription.cancel());
+        unawaited(controller.close());
+        async.flushMicrotasks();
+      });
+    });
+  });
+
   group('execution', () {
     test(
       'executes the first synchronous action and preserves its value',
