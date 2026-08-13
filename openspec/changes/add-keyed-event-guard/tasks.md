@@ -20,9 +20,9 @@
 
 ## 4. Package Documentation
 
-- [ ] 4.1 Add a runnable example demonstrating exhaustive handling of executed and dropped results.
-- [ ] 4.2 Rewrite the README with scope, installation, usage, result semantics, cooldown/error behavior, lifecycle limits, and non-goals.
-- [ ] 4.3 Update the changelog and package metadata for the 0.1.0 release.
+- [x] 4.1 Add a runnable example demonstrating exhaustive handling of executed and dropped results.
+- [x] 4.2 Rewrite the README with scope, installation, usage, result semantics, cooldown/error behavior, lifecycle limits, and non-goals.
+- [x] 4.3 Update the changelog and package metadata for the 0.1.0 release.
 
 ## 5. Verification
 

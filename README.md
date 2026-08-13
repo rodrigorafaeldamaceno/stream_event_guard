@@ -1,39 +1,90 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# stream_event_guard
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Keyed duplicate suppression and cooldown control for synchronous and asynchronous Dart events.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+`EventGuard` prevents the same logical event from running more than once at the same time or during a configurable post-success cooldown. Each key has independent state, so unrelated events can still run concurrently.
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- Drops duplicate work while the same key is running.
+- Applies an optional cooldown after successful work.
+- Keeps different keys independent.
+- Accepts synchronous and asynchronous actions.
+- Preserves nullable action results.
+- Reports whether work executed or why it was dropped.
+- Releases failed keys immediately for retry.
+- Removes per-key state when it is no longer needed.
+- Uses no runtime dependencies and works in Dart and Flutter applications.
 
-## Getting started
+## Installation
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+```shell
+dart pub add stream_event_guard
+```
+
+For a Flutter application, use `flutter pub add stream_event_guard`.
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+Create a guard with the type used to identify equivalent events:
 
 ```dart
-const like = 'sample';
+import 'package:stream_event_guard/stream_event_guard.dart';
+
+final scanGuard = EventGuard<String>(
+  cooldown: const Duration(seconds: 2),
+);
+
+Future<void> handleScan(String code) async {
+  final result = await scanGuard.run(
+    key: code,
+    action: () => processCode(code),
+  );
+
+  switch (result) {
+    case Executed(value: final value):
+      print('Processed: $value');
+    case Dropped(reason: final reason):
+      print('Ignored: $reason');
+  }
+}
+
+Future<String> processCode(String code) async => 'product:$code';
 ```
 
-## Additional information
+For a given key, the lifecycle is:
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+```text
+absent -> running -> cooldown -> absent
+              |
+              +-- failure ----> absent
+```
+
+While running, another submission returns `Dropped` with `DropReason.alreadyRunning`. After a successful action, duplicates during the configured cooldown return `DropReason.cooldown`. The cooldown begins when the action completes, not when it starts.
+
+The default cooldown is `Duration.zero`, which only protects against overlapping executions:
+
+```dart
+final submitGuard = EventGuard<int>();
+```
+
+## Result handling
+
+`run<R>` returns `Future<GuardResult<R>>`:
+
+- `Executed<R>` contains the exact value returned by the action, including `null` when `R` is nullable.
+- `Dropped<R>` contains either `DropReason.alreadyRunning` or `DropReason.cooldown`.
+
+The action can return `R` or `Future<R>`. If it throws synchronously or completes with an error, the original error is propagated. Failed actions do not start a cooldown, so the same key can be retried immediately.
+
+## Scope and limitations
+
+State is local to one `EventGuard` instance in one isolate. The package does not provide distributed idempotency, persistence, retries, cancellation, queueing, joining, or exactly-once delivery.
+
+Keys use normal Dart `==` and `hashCode` semantics. Their equality and hash code must remain stable while an action or cooldown is active.
+
+See [`example/stream_event_guard_example.dart`](example/stream_event_guard_example.dart) for a complete runnable example.
+
+## Contributing
+
+Issues and pull requests are welcome in the [GitHub repository](https://github.com/rodrigorafaeldamaceno/stream_event_guard).
