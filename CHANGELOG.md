@@ -1,4 +1,4 @@
-## 0.1.0
+## 0.1.0-dev.1
 
 - Add key-scoped synchronous and asynchronous action execution.
 - Drop duplicate keys while work is running or cooling down.
