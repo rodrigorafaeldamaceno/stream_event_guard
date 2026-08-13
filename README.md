@@ -99,6 +99,42 @@ final submitGuard = EventGuard<int>();
 
 The action can return `R` or `Future<R>`. If it throws synchronously or completes with an error, the original error is propagated. Failed actions do not start a cooldown, so the same key can be retried immediately.
 
+## Object events and keys
+
+The generic parameter in `EventGuard<K>` is the key type, not the event type.
+Objects do not need `Equatable` or custom equality when they expose a stable
+identifier:
+
+```dart
+final orderGuard = EventGuard<String>();
+
+ordersStream.listen((order) {
+  unawaited(
+    orderGuard.run(
+      key: order.id,
+      action: () => send(order),
+    ),
+  );
+});
+```
+
+Different `Order` instances with the same `id` share guard state. Composite
+identifiers can use Dart records:
+
+```dart
+final orderGuard = EventGuard<({String accountId, String orderId})>();
+
+orderGuard.run(
+  key: (accountId: order.accountId, orderId: order.id),
+  action: () => send(order),
+);
+```
+
+You can use an object itself as the key with `EventGuard<Order>`. In that case,
+deduplication follows the object's normal `==` and `hashCode` behavior;
+`Equatable` is one optional way to define that behavior, but it is not required
+or included as a dependency.
+
 ## Scope and limitations
 
 State is local to one `EventGuard` instance in one isolate. The package does not provide distributed idempotency, persistence, retries, cancellation, queueing, joining, or exactly-once delivery.

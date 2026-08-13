@@ -383,6 +383,48 @@ void main() {
       completer.complete();
       await first;
     });
+
+    test('deduplicates distinct objects by a derived identifier', () async {
+      final guard = EventGuard<String>();
+      final firstOrder = _Order(id: 'order-1', description: 'first instance');
+      final repeatedOrder = _Order(
+        id: 'order-1',
+        description: 'another instance',
+      );
+      final completer = Completer<void>();
+      final first = guard.run(
+        key: firstOrder.id,
+        action: () => completer.future,
+      );
+
+      final duplicate = await guard.run(
+        key: repeatedOrder.id,
+        action: () => repeatedOrder.description,
+      );
+
+      expect(identical(firstOrder, repeatedOrder), isFalse);
+      expect((duplicate as Dropped<String>).reason, DropReason.alreadyRunning);
+      completer.complete();
+      await first;
+    });
+
+    test('uses object equality when the object itself is the key', () async {
+      final guard = EventGuard<_EquivalentKey>();
+      final completer = Completer<void>();
+      final first = guard.run(
+        key: const _EquivalentKey('order-1'),
+        action: () => completer.future,
+      );
+
+      final duplicate = await guard.run(
+        key: const _EquivalentKey('order-1'),
+        action: () => 2,
+      );
+
+      expect((duplicate as Dropped<int>).reason, DropReason.alreadyRunning);
+      completer.complete();
+      await first;
+    });
   });
 }
 
@@ -404,4 +446,11 @@ final class _EquivalentKey {
 
   @override
   int get hashCode => value.hashCode;
+}
+
+final class _Order {
+  const _Order({required this.id, required this.description});
+
+  final String id;
+  final String description;
 }
