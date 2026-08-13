@@ -1,5 +1,5 @@
-/// A Calculator.
-class Calculator {
-  /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
-}
+/// Keyed duplicate suppression and cooldown control for Dart events.
+library;
+
+export 'src/event_guard.dart';
+export 'src/guard_result.dart';

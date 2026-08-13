@@ -1,18 +1,18 @@
 ## 1. Dart Package Foundation
 
-- [ ] 1.1 Convert `pubspec.yaml` and analysis configuration from the Flutter scaffold to a Dart-only package at version 0.1.0 with test, lint, and deterministic-timer development dependencies.
-- [ ] 1.2 Replace the calculator barrel with documented exports and create the focused `lib/src/` files for the guard and result model.
+- [x] 1.1 Convert `pubspec.yaml` and analysis configuration from the Flutter scaffold to a Dart-only package at version 0.1.0 with test, lint, and deterministic-timer development dependencies.
+- [x] 1.2 Replace the calculator barrel with documented exports and create the focused `lib/src/` files for the guard and result model.
 
 ## 2. Public API and State Machine
 
-- [ ] 2.1 Implement the sealed `GuardResult<R>` model, `Executed<R>`, `Dropped<R>`, and the `DropReason` values `alreadyRunning` and `cooldown`.
-- [ ] 2.2 Implement `EventGuard<K>` construction with a zero default cooldown and `ArgumentError` validation for negative durations.
-- [ ] 2.3 Implement generic synchronous/asynchronous action execution with atomic per-key registration, independent keys, explicit in-flight drops, exact value preservation, and error propagation with immediate key release.
-- [ ] 2.4 Implement success-based cooldown state and identity-checked timer cleanup so expired state cannot remove a newer entry.
+- [x] 2.1 Implement the sealed `GuardResult<R>` model, `Executed<R>`, `Dropped<R>`, and the `DropReason` values `alreadyRunning` and `cooldown`.
+- [x] 2.2 Implement `EventGuard<K>` construction with a zero default cooldown and `ArgumentError` validation for negative durations.
+- [x] 2.3 Implement generic synchronous/asynchronous action execution with atomic per-key registration, independent keys, explicit in-flight drops, exact value preservation, and error propagation with immediate key release.
+- [x] 2.4 Implement success-based cooldown state and identity-checked timer cleanup so expired state cannot remove a newer entry.
 
 ## 3. Behavioral Test Coverage
 
-- [ ] 3.1 Replace the scaffold test with coverage for first execution, synchronous and asynchronous values, nullable values, different-key concurrency, and instance isolation.
+- [x] 3.1 Replace the scaffold test with coverage for first execution, synchronous and asynchronous values, nullable values, different-key concurrency, and instance isolation.
 - [ ] 3.2 Add completer-driven tests for same-key in-flight drops and reentrant same-key submissions.
 - [ ] 3.3 Add deterministic timer tests for cooldown drops, cooldown beginning after completion, expiration, zero duration, and cleanup safety.
 - [ ] 3.4 Add tests proving synchronous throws and asynchronous failures propagate and permit an immediate same-key retry.
