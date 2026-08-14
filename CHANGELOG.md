@@ -1,3 +1,10 @@
+## 0.1.0
+
+- Promote the initial keyed event guard API to a stable release.
+- Document fire-and-forget stream usage for QR code, barcode, NFC, BLE, and sensor events.
+- Document derived keys for object events without requiring an equality package.
+- Verify keyed deduplication, cooldown behavior, object keys, and stream integration.
+
 ## 0.1.0-dev.1
 
 - Add key-scoped synchronous and asynchronous action execution.

@@ -1,6 +1,6 @@
 name: stream_event_guard
 description: Keyed duplicate suppression and cooldown control for synchronous and asynchronous Dart events.
-version: 0.1.0-dev.1
+version: 0.1.0
 repository: https://github.com/rodrigorafaeldamaceno/stream_event_guard
 issue_tracker: https://github.com/rodrigorafaeldamaceno/stream_event_guard/issues
 
